@@ -96,241 +96,132 @@ public class BoardController {
 		} catch (IOException e) {
 			e.printStackTrace();
 			return "error";
-
 		}
 
 		if (file != null && !file.isEmpty()) {
-
 			try {
-
 				String originalFileName = file.getOriginalFilename();
-
 				String fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
-
 				fileName = UUID.randomUUID().toString() + fileExtension;
-
 				filePath = UPLOAD_DIR + fileName;
 
 				File dest = new File(filePath);
-
 				file.transferTo(dest);
-
 			} catch (IOException e) {
-
 				e.printStackTrace();
-
 				return "error";
-
 			}
-
 		}
 
 		String sql = "insert into tbl_board (title, content, writer, regdate, fileName, filepath)"
-
 				+ "values(:title, :content, :writer, DATE_FORMAT(NOW(), '%Y-%m-%d'), :fileName, :filepath)";
-
 		Query query = entityManager.createNativeQuery(sql);
-
 		query.setParameter("title", title);
-
 		query.setParameter("writer", writer);
-
 		query.setParameter("content", content);
-
 		query.setParameter("fileName", fileName);
-
 		query.setParameter("filepath", filePath);
-
 		query.executeUpdate();
-
 		return "success";
-
 	}
 
 	@GetMapping("/boardDetail/{idx}")
-
 	public String boardDetail(@PathVariable("idx") Long idx, Model model) {
-
 		String sql = " SELECT idx, title, content, writer, regdate, fileName, filepath "
-
 				+ " FROM tbl_board WHERE idx = :idx ";
-
 		Query query = entityManager.createNativeQuery(sql);
-
 		query.setParameter("idx", idx);
 
 		Object[] row = (Object[]) query.getSingleResult();
-
 		Map<String, Object> detail = new HashMap<>();
 
 		detail.put("idx", row[0]);
-
 		detail.put("title", row[1]);
-
 		detail.put("content", row[2]);
-
 		detail.put("writer", row[3]);
-
 		detail.put("regdate", row[4]);
-
 		detail.put("fileName", row[5]);
-
 		detail.put("filepath", row[6]);
 
 		model.addAttribute("detail", detail);
-
 		return "board/detail";
-
 	}
 
 	@GetMapping("/board/image")
-
 	@ResponseBody
-
 	public ResponseEntity<Resource> getBoardImage(@RequestParam("path") String filePath) {
-
 		try {
-
 			Path imagePath = Paths.get(filePath).normalize();
-
 			Resource resource = new UrlResource(imagePath.toUri());
-
 			if (!resource.exists()) {
-
 				return ResponseEntity.notFound().build();
-
 			}
-
 			String contentType = Files.probeContentType(imagePath);
-
 			if (contentType == null) {
-
 				contentType = "application/octet-stream";
-
 			}
 
-			return ResponseEntity.ok()
-
-					.contentType(MediaType.parseMediaType(contentType)) // 동적으로 Content-Type 설정
-
+			return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType)) // 동적으로 Content-Type 설정
 					.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
-
 					.body(resource);
-
 		} catch (Exception e) {
-
 // TODO: handle exception
-
 			e.printStackTrace();
-
 			return ResponseEntity.internalServerError().build();
-
 		}
-
 	}
 
 	@PostMapping("/deleteBoard")
-
 	@ResponseBody
-
 	@Transactional
-
 	public ResponseEntity<String> deletePost(@RequestParam("idx") Long idx) {
-
 		try {
-
 			String sql = "SELECT filepath FROM tbl_board WHERE idx = :idx";
-
-			String filePath = (String) entityManager.createNativeQuery(sql)
-
-					.setParameter("idx", idx)
-
-					.getSingleResult();
+			String filePath = (String) entityManager.createNativeQuery(sql).setParameter("idx", idx).getSingleResult();
 
 			String deleteSql = "delete from tbl_board where idx = :idx";
-
-			entityManager.createNativeQuery(deleteSql)
-
-					.setParameter("idx", idx)
-
-					.executeUpdate();
+			entityManager.createNativeQuery(deleteSql).setParameter("idx", idx).executeUpdate();
 
 			if (filePath != null && !filePath.trim().isEmpty()) {
-
 				File file = new File(filePath);
-
 				if (file.exists()) {
-
 					file.delete();
-
 				}
-
 			}
-
 			return ResponseEntity.ok("삭제완료");
-
 		} catch (Exception e) {
-
 			e.printStackTrace();
-
 			return ResponseEntity.status(500).body("삭제실패");
-
 		}
-
 	}
 
 	private static void createDirectoryWithPermissions(String dirPath) throws IOException {
-
 		Path path = Paths.get(dirPath);
-
 		if (Files.notExists(path)) {
-
 			Set<PosixFilePermission> permissions = PosixFilePermissions.fromString("rwxr-xr-x");
-
 			Files.createDirectories(path, PosixFilePermissions.asFileAttribute(permissions));
-
 		}
-
 		try {
-
 			changeOwnerAndGroup(dirPath, "tomcat", "tomcat");
-
 		} catch (IOException e) {
-
 			e.printStackTrace();
-
 		}
-
 	}
 
 	private static void changeOwnerAndGroup(String dirPath, String owner, String group) throws IOException {
-
 		String command = String.format("chown -R %s:%s %s", owner, group, dirPath);
-
 		ProcessBuilder processBuilder = new ProcessBuilder();
-
 		processBuilder.command("bash", "-c", command);
-
 		processBuilder.inheritIO();
-
 		Process process = processBuilder.start();
-
 		try {
-
 			int exitCode = process.waitFor();
-
 			if (exitCode != 0) {
-
 				throw new IOException("Failed to change owner and group for directory : " + dirPath);
-
 			}
-
 		} catch (InterruptedException e) {
-
 			e.printStackTrace();
-
 		}
-
 	}
 
 }
